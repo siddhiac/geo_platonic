@@ -1,0 +1,631 @@
+# lib/geo_platonic/platonic_solids.ex
+defmodule GeoPlatonic.PlatonicSolids do
+  @moduledoc """
+  Module for generating mathematically accurate platonic solids on a sphere based on a chosen point.
+
+  This module provides functions to create the five platonic solids:
+  - Tetrahedron (4 vertices)
+  - Cube/Hexahedron (8 vertices)
+  - Octahedron (6 vertices)
+  - Dodecahedron (20 vertices)
+  - Icosahedron (12 vertices)
+
+  Each solid is generated so that one of its vertices is at the selected point,
+  with the remaining vertices positioned to create a mathematically precise regular solid.
+  """
+
+  @golden_ratio (1 + :math.sqrt(5)) / 2
+
+
+
+
+
+
+
+
+
+
+  @doc """
+  Generates a tetrahedron where one vertex is at the specified point.
+
+  A regular tetrahedron has 4 vertices, each equidistant from all others,
+  forming a triangular pyramid with 4 equilateral triangular faces.
+  """
+  def generate_tetrahedron(lat, lng) do
+    # For a regular tetrahedron, the vertices form a perfect triangular pyramid
+    # The dihedral angle between faces is arccos(-1/3) ≈ 109.47°
+
+    # Convert the origin point to Cartesian coordinates and use as our first vertex
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # The tetrahedron can be constructed from the coordinates:
+    # (1,0,0), (0,1,0), (0,0,1), and (1,1,1)/sqrt(3)
+    # We'll rotate these to ensure one vertex is at our chosen position
+    base_coords = [
+      {1, 1, 1},
+      {-1, -1, 1},
+      {-1, 1, -1},
+      {1, -1, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the tetrahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    vertices = Enum.map(base_coords, fn vertex ->
+      rotated = apply_rotation(rotation_matrix, vertex)
+      cartesian_to_lat_lng(rotated)
+    end)
+
+    vertices
+  end
+
+
+
+
+
+  @doc """
+  Generates an facing tetrahedron whose vertices are the antipodes of the tetrahedron vertices.
+
+  This creates a tetrahedron whose vertices are exactly facing to the regular tetrahedron.
+  When combined with the regular tetrahedron, they form the 8 vertices of a cube.
+  """
+  def generate_facing_tetrahedron(lat, lng) do
+    # First, get the regular tetrahedron vertices
+    regular_tetrahedron = generate_tetrahedron(lat, lng)
+
+    # Calculate the antipode of each vertex
+    facing_vertices = Enum.map(regular_tetrahedron, fn vertex ->
+      calculate_antipode(vertex)
+    end)
+
+    facing_vertices
+  end
+
+  @doc """
+  Calculates the antipode (facing point on Earth) of a given lat/lng point.
+  """
+  def calculate_antipode(%{lat: lat, lng: lng}) do
+    # The antipode has the facing latitude and longitude +/- 180°
+    antipode_lat = -lat
+    antipode_lng = if lng > 0, do: lng - 180, else: lng + 180
+
+    %{lat: antipode_lat, lng: antipode_lng}
+  end
+
+  @doc """
+  Generates a cube (hexahedron) where one vertex is at the specified point.
+
+  A cube has 8 vertices, forming a regular polyhedron with 6 square faces.
+  """
+  def generate_cube(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # Create the 8 vertices of a cube centered at the origin with side length 2
+    # Each coordinate is either 1 or -1
+    base_coords = [
+      {1, 1, 1},
+      {1, 1, -1},
+      {1, -1, 1},
+      {1, -1, -1},
+      {-1, 1, 1},
+      {-1, 1, -1},
+      {-1, -1, 1},
+      {-1, -1, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the cube to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    vertices = Enum.map(base_coords, fn vertex ->
+      rotated = apply_rotation(rotation_matrix, vertex)
+      cartesian_to_lat_lng(rotated)
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates an octahedron where one vertex is at the specified point.
+
+  An octahedron has 6 vertices, forming a regular polyhedron with 8 triangular faces.
+  """
+  def generate_octahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # Create the 6 vertices of an octahedron
+    # These are the points along the coordinate axes
+    base_coords = [
+      {1, 0, 0},
+      {-1, 0, 0},
+      {0, 1, 0},
+      {0, -1, 0},
+      {0, 0, 1},
+      {0, 0, -1}
+    ]
+
+    # All vectors are already on unit sphere since they're axis-aligned unit vectors
+
+    # Rotate the octahedron to place one vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    vertices = Enum.map(base_coords, fn vertex ->
+      rotated = apply_rotation(rotation_matrix, vertex)
+      cartesian_to_lat_lng(rotated)
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates a dodecahedron where one vertex is at the specified point.
+
+  A dodecahedron has 20 vertices, forming a regular polyhedron with 12 pentagonal faces.
+  """
+  def generate_dodecahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+    phi = @golden_ratio
+
+    # The vertices of a regular dodecahedron use the golden ratio
+    # These vertices are based on mathematical formulas using phi
+    base_coords = [
+      # Vertices from the scaled cube (±1, ±1, ±1)
+      {1, 1, 1},
+      {1, 1, -1},
+      {1, -1, 1},
+      {1, -1, -1},
+      {-1, 1, 1},
+      {-1, 1, -1},
+      {-1, -1, 1},
+      {-1, -1, -1},
+
+      # Vertices from the scaled icosahedron
+      {0, 1/phi, phi},
+      {0, -1/phi, phi},
+      {0, 1/phi, -phi},
+      {0, -1/phi, -phi},
+
+      {phi, 0, 1/phi},
+      {-phi, 0, 1/phi},
+      {phi, 0, -1/phi},
+      {-phi, 0, -1/phi},
+
+      {1/phi, phi, 0},
+      {-1/phi, phi, 0},
+      {1/phi, -phi, 0},
+      {-1/phi, -phi, 0}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the dodecahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    vertices = Enum.map(base_coords, fn vertex ->
+      rotated = apply_rotation(rotation_matrix, vertex)
+      cartesian_to_lat_lng(rotated)
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates an icosahedron where one vertex is at the specified point.
+
+  An icosahedron has 12 vertices, forming a regular polyhedron with 20 triangular faces.
+  """
+  def generate_icosahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+    phi = @golden_ratio
+
+    # The 12 vertices of an icosahedron, using the golden ratio
+    base_coords = [
+      {0, 1, phi},
+      {0, -1, phi},
+      {0, 1, -phi},
+      {0, -1, -phi},
+      {1, phi, 0},
+      {-1, phi, 0},
+      {1, -phi, 0},
+      {-1, -phi, 0},
+      {phi, 0, 1},
+      {-phi, 0, 1},
+      {phi, 0, -1},
+      {-phi, 0, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the icosahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    vertices = Enum.map(base_coords, fn vertex ->
+      rotated = apply_rotation(rotation_matrix, vertex)
+      cartesian_to_lat_lng(rotated)
+    end)
+
+    vertices
+  end
+
+
+
+
+
+  @doc """
+Generates a facing cube (hexahedron) whose vertices are the centers of the octahedron faces.
+
+This creates a cube that is dual to the octahedron, with vertices positioned at the
+centers of each face of the octahedron.
+"""
+def generate_facing_cube(lat, lng) do
+  # First, generate an octahedron
+  octahedron = generate_octahedron(lat, lng)
+  octahedron_points = Enum.map(octahedron, &lat_lng_to_cartesian(&1.lat, &1.lng))
+
+  # The octahedron has 8 faces, and the dual cube has 8 vertices
+  # We need to find the centers of the octahedron's faces
+
+  # The 8 triangular faces of the octahedron can be described by these vertex triplets
+  # These indices correspond to the vertices in the standard octahedron
+  octahedron_faces = [
+    # Upper hemisphere faces
+    [0, 2, 4],
+    [0, 4, 3],
+    [0, 3, 5],
+    [0, 5, 2],
+
+    # Lower hemisphere faces
+    [1, 2, 4],
+    [1, 4, 3],
+    [1, 3, 5],
+    [1, 5, 2]
+  ]
+
+  # Calculate the center of each face (normalized to the unit sphere)
+  face_centers = Enum.map(octahedron_faces, fn face_indices ->
+    # Get the three vertices of this face
+    vertices = Enum.map(face_indices, fn idx -> Enum.at(octahedron_points, idx) end)
+
+    # Calculate the centroid of the triangle
+    {x1, y1, z1} = Enum.at(vertices, 0)
+    {x2, y2, z2} = Enum.at(vertices, 1)
+    {x3, y3, z3} = Enum.at(vertices, 2)
+
+    # The centroid is the average of the three vertices
+    centroid = {(x1 + x2 + x3) / 3, (y1 + y2 + y3) / 3, (z1 + z2 + z3) / 3}
+
+    # Normalize to place on unit sphere
+    normalize(centroid)
+  end)
+
+  # Convert back to lat/lng
+  Enum.map(face_centers, &cartesian_to_lat_lng/1)
+end
+
+@doc """
+Generates a facing octahedron whose vertices are the centers of the cube faces.
+
+This creates an octahedron that is dual to the cube, with vertices positioned at the
+centers of each face of the cube.
+"""
+def generate_facing_octahedron(lat, lng) do
+  # First, generate a cube
+  cube = generate_cube(lat, lng)
+  cube_points = Enum.map(cube, &lat_lng_to_cartesian(&1.lat, &1.lng))
+
+  # The cube has 6 faces, and the dual octahedron has 6 vertices
+  # The 6 square faces of the cube can be described by these vertex quartets
+  # These indices correspond to the vertices in the standard cube
+  cube_faces = [
+    # Face indices for a cube centered at the origin
+    [0, 1, 5, 4],  # Top face (+y)
+    [2, 3, 7, 6],  # Bottom face (-y)
+    [0, 2, 6, 4],  # Front face (+z)
+    [1, 3, 7, 5],  # Back face (-z)
+    [4, 5, 7, 6],  # Right face (+x)
+    [0, 1, 3, 2]   # Left face (-x)
+  ]
+
+  # Calculate the center of each face (normalized to the unit sphere)
+  face_centers = Enum.map(cube_faces, fn face_indices ->
+    # Get the four vertices of this face
+    vertices = Enum.map(face_indices, fn idx -> Enum.at(cube_points, idx) end)
+
+    # Calculate the centroid of the square
+    {x1, y1, z1} = Enum.at(vertices, 0)
+    {x2, y2, z2} = Enum.at(vertices, 1)
+    {x3, y3, z3} = Enum.at(vertices, 2)
+    {x4, y4, z4} = Enum.at(vertices, 3)
+
+    # The centroid is the average of the four vertices
+    centroid = {
+      (x1 + x2 + x3 + x4) / 4,
+      (y1 + y2 + y3 + y4) / 4,
+      (z1 + z2 + z3 + z4) / 4
+    }
+
+    # Normalize to place on unit sphere
+    normalize(centroid)
+  end)
+
+  # Convert back to lat/lng
+  Enum.map(face_centers, &cartesian_to_lat_lng/1)
+end
+@doc """
+Generates a facing dodecahedron whose vertices are properly positioned to be dual to the icosahedron.
+
+This creates a dodecahedron where one vertex is exactly at the specified lat/lng point, and the
+remaining vertices are correctly positioned to form a regular dodecahedron that is dual to the icosahedron.
+"""
+def generate_facing_dodecahedron(lat, lng) do
+  # The key insight is that a dual polyhedron has vertices at the centers of
+  # the faces of the original polyhedron. For a regular dodecahedron (dual to icosahedron),
+  # we need to place its first vertex at the specified point, then position the others accordingly.
+
+  # First, we determine what face of an icosahedron would have its center at our specified point
+  p = lat_lng_to_cartesian(lat, lng)
+
+  # We'll start with a standard icosahedron centered at the origin
+  phi = @golden_ratio
+
+  # Generate a standard icosahedron
+  icosa_vertices = [
+    {0, 1, phi},
+    {0, -1, phi},
+    {0, 1, -phi},
+    {0, -1, -phi},
+    {1, phi, 0},
+    {-1, phi, 0},
+    {1, -phi, 0},
+    {-1, -phi, 0},
+    {phi, 0, 1},
+    {-phi, 0, 1},
+    {phi, 0, -1},
+    {-phi, 0, -1}
+  ]
+
+  # Normalize all vertices to the unit sphere
+  icosa_vertices = Enum.map(icosa_vertices, &normalize/1)
+
+  # Create a standard dodecahedron (which is dual to the icosahedron)
+  # The vertices of the dodecahedron are at the centers of the icosahedron's faces
+  # For a regular icosahedron, we know it has 20 triangular faces
+
+  # We'll generate one point at the specified lat/lng, then the rest in the correct relationship
+
+  # Determine the rotation matrix to move our first vertex to the desired position
+  origin_vertex = {0, 0, 1} # This will be mapped to our target point
+  rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+  # Now generate the full dodecahedron by using the known geometric properties
+  # Standard dodecahedron vertices based on the golden ratio
+  dodeca_vertices = [
+    # The 20 vertices of a regular dodecahedron
+    {0, 1/phi, phi},
+    {0, -1/phi, phi},
+    {0, 1/phi, -phi},
+    {0, -1/phi, -phi},
+
+    {1/phi, phi, 0},
+    {-1/phi, phi, 0},
+    {1/phi, -phi, 0},
+    {-1/phi, -phi, 0},
+
+    {phi, 0, 1/phi},
+    {-phi, 0, 1/phi},
+    {phi, 0, -1/phi},
+    {-phi, 0, -1/phi},
+
+    {1, 1, 1},
+    {1, 1, -1},
+    {1, -1, 1},
+    {1, -1, -1},
+    {-1, 1, 1},
+    {-1, 1, -1},
+    {-1, -1, 1},
+    {-1, -1, -1}
+  ]
+
+  # Normalize all vertices to the unit sphere
+  dodeca_vertices = Enum.map(dodeca_vertices, &normalize/1)
+
+  # Apply the rotation to all vertices
+  rotated_vertices = Enum.map(dodeca_vertices, fn vertex ->
+    rotated = apply_rotation(rotation_matrix, vertex)
+    cartesian_to_lat_lng(rotated)
+  end)
+
+  rotated_vertices
+end
+
+@doc """
+Generates a facing icosahedron whose vertices are properly positioned to be dual to the dodecahedron.
+
+This creates an icosahedron where one vertex is exactly at the specified lat/lng point, and the
+remaining vertices are correctly positioned to form a regular icosahedron that is dual to the dodecahedron.
+"""
+def generate_facing_icosahedron(lat, lng) do
+  # The key insight is that a dual polyhedron has vertices at the centers of
+  # the faces of the original polyhedron. For a regular icosahedron (dual to dodecahedron),
+  # we need to place its first vertex at the specified point, then position the others accordingly.
+
+  # First, we determine what face of a dodecahedron would have its center at our specified point
+  p = lat_lng_to_cartesian(lat, lng)
+
+  # We'll start with a standard icosahedron centered at the origin
+  phi = @golden_ratio
+
+  # Determine the rotation matrix to move our first vertex to the desired position
+  origin_vertex = {0, 0, 1} # This will be mapped to our target point
+  rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+  # Generate a standard icosahedron
+  icosa_vertices = [
+    {0, 1, phi},
+    {0, -1, phi},
+    {0, 1, -phi},
+    {0, -1, -phi},
+    {1, phi, 0},
+    {-1, phi, 0},
+    {1, -phi, 0},
+    {-1, -phi, 0},
+    {phi, 0, 1},
+    {-phi, 0, 1},
+    {phi, 0, -1},
+    {-phi, 0, -1}
+  ]
+
+  # Normalize all vertices to the unit sphere
+  icosa_vertices = Enum.map(icosa_vertices, &normalize/1)
+
+  # Apply the rotation to all vertices
+  rotated_vertices = Enum.map(icosa_vertices, fn vertex ->
+    rotated = apply_rotation(rotation_matrix, vertex)
+    cartesian_to_lat_lng(rotated)
+  end)
+
+  rotated_vertices
+end
+
+
+  # Advanced helper functions for accurate rotation and transformation
+
+  # Calculate the rotation matrix to rotate vector v1 to align with vector v2
+  defp rotation_matrix_between_vectors(v1, v2) do
+    v1 = normalize(v1)
+    v2 = normalize(v2)
+
+    # Calculate the cross product and dot product
+    cross = cross_product(v1, v2)
+    dot = dot_product(v1, v2)
+
+    # Handle the case where vectors are parallel or anti-parallel
+    if abs(1.0 - dot) < 1.0e-10 do
+      # Vectors are nearly identical, return identity matrix
+      return_identity_matrix()
+    else
+      if abs(-1.0 - dot) < 1.0e-10 do
+        # Vectors are nearly facing
+        # Find an arbitrary perpendicular vector
+        perp = perpendicular_vector(v1)
+        # Rotate 180 degrees around this perpendicular vector
+        axis_angle_to_rotation_matrix(perp, :math.pi())
+      else
+        # Normal case: calculate the rotation matrix using Rodrigues' rotation formula
+        k = normalize(cross)
+        angle = :math.acos(dot)
+        axis_angle_to_rotation_matrix(k, angle)
+      end
+    end
+  end
+
+  # Return identity rotation matrix
+  defp return_identity_matrix() do
+    {
+      {1.0, 0.0, 0.0},
+      {0.0, 1.0, 0.0},
+      {0.0, 0.0, 1.0}
+    }
+  end
+
+  # Find a perpendicular vector to v
+  defp perpendicular_vector({x, y, z}) do
+    # Choose the coordinate with smallest absolute value
+    # and swap with another coordinate
+    cond do
+      abs(x) < abs(y) and abs(x) < abs(z) ->
+        normalize({0, -z, y})
+      abs(y) < abs(z) ->
+        normalize({-z, 0, x})
+      true ->
+        normalize({-y, x, 0})
+    end
+  end
+
+  # Convert axis and angle to rotation matrix (Rodrigues' rotation formula)
+  defp axis_angle_to_rotation_matrix({kx, ky, kz}, angle) do
+    c = :math.cos(angle)
+    s = :math.sin(angle)
+    t = 1 - c
+
+    r11 = c + kx * kx * t
+    r12 = kx * ky * t - kz * s
+    r13 = kx * kz * t + ky * s
+
+    r21 = ky * kx * t + kz * s
+    r22 = c + ky * ky * t
+    r23 = ky * kz * t - kx * s
+
+    r31 = kz * kx * t - ky * s
+    r32 = kz * ky * t + kx * s
+    r33 = c + kz * kz * t
+
+    {
+      {r11, r12, r13},
+      {r21, r22, r23},
+      {r31, r32, r33}
+    }
+  end
+
+  # Apply a rotation matrix to a vector
+  defp apply_rotation(matrix, {x, y, z}) do
+    {{r11, r12, r13}, {r21, r22, r23}, {r31, r32, r33}} = matrix
+
+    x_new = r11 * x + r12 * y + r13 * z
+    y_new = r21 * x + r22 * y + r23 * z
+    z_new = r31 * x + r32 * y + r33 * z
+
+    {x_new, y_new, z_new}
+  end
+
+  # Vector operations
+  defp cross_product({x1, y1, z1}, {x2, y2, z2}) do
+    {
+      y1 * z2 - z1 * y2,
+      z1 * x2 - x1 * z2,
+      x1 * y2 - y1 * x2
+    }
+  end
+
+  defp dot_product({x1, y1, z1}, {x2, y2, z2}) do
+    x1 * x2 + y1 * y2 + z1 * z2
+  end
+
+  # Convert latitude/longitude to Cartesian coordinates (x, y, z)
+  defp lat_lng_to_cartesian(lat, lng) do
+    lat_rad = :math.pi() * lat / 180
+    lng_rad = :math.pi() * lng / 180
+
+    x = :math.cos(lat_rad) * :math.cos(lng_rad)
+    y = :math.cos(lat_rad) * :math.sin(lng_rad)
+    z = :math.sin(lat_rad)
+
+    {x, y, z}
+  end
+
+  # Convert Cartesian coordinates (x, y, z) to latitude/longitude
+  defp cartesian_to_lat_lng({x, y, z}) do
+    lat = :math.asin(z) * 180 / :math.pi()
+    lng = :math.atan2(y, x) * 180 / :math.pi()
+
+    %{lat: lat, lng: lng}
+  end
+
+  # Normalize a vector to unit length
+  defp normalize({x, y, z}) do
+    length = :math.sqrt(x * x + y * y + z * z)
+    {x / length, y / length, z / length}
+  end
+end

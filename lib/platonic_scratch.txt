@@ -1,0 +1,785 @@
+defmodule GeoPlatonic.PlatonicSolids do
+  @moduledoc """
+  Module for generating mathematically accurate platonic solids on a sphere based on a chosen point.
+
+  This module provides functions to create the five platonic solids:
+  - Tetrahedron (4 vertices)
+  - Cube/Hexahedron (8 vertices)
+  - Octahedron (6 vertices)
+  - Dodecahedron (20 vertices)
+  - Icosahedron (12 vertices)
+
+  Each solid is generated so that one of its vertices is at the selected point,
+  with the remaining vertices positioned to create a mathematically precise regular solid.
+  The closest next vertex is aligned on the same longitude as the specified point
+  (or reverse longitude for the tetrahedron).
+  """
+
+  @golden_ratio (1 + :math.sqrt(5)) / 2
+
+  @doc """
+  Generates a tetrahedron where one vertex is at the specified point.
+  The next closest vertex will be aligned on the reverse longitude of the specified point.
+
+  A regular tetrahedron has 4 vertices, each equidistant from all others,
+  forming a triangular pyramid with 4 equilateral triangular faces.
+  """
+  def generate_tetrahedron(lat, lng) do
+    # Convert the origin point to Cartesian coordinates and use as our first vertex
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # The tetrahedron can be constructed from normalized coordinates
+    base_coords = [
+      {1, 1, 1},
+      {-1, -1, 1},
+      {-1, 1, -1},
+      {1, -1, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the tetrahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    # Apply the initial rotation to all vertices
+    rotated_coords = Enum.map(base_coords, fn vertex ->
+      apply_rotation(rotation_matrix, vertex)
+    end)
+
+    # For tetrahedron, we want reverse longitude alignment
+    # Calculate the target longitude + 180° (reverse direction)
+    target_lng = lng + 180
+    target_lng = if target_lng > 180, do: target_lng - 360, else: target_lng
+    
+    # Find the vertex closest to the first one (excluding itself)
+    [first_vertex | other_vertices] = rotated_coords
+    {closest_vertex, _min_distance} = 
+      Enum.map(other_vertices, fn vertex -> 
+        {vertex, vector_distance(first_vertex, vertex)} 
+      end)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+    
+    # Calculate the current longitude of the closest vertex
+    %{lng: current_lng} = cartesian_to_lat_lng(closest_vertex)
+    
+    # Calculate the rotation angle around the axis through the first vertex
+    rotation_angle = (target_lng - current_lng) * :math.pi() / 180
+    
+    # Create rotation matrix around the axis through the chosen point (first_vertex)
+    axial_rotation = axis_angle_to_rotation_matrix(normalize(first_vertex), rotation_angle)
+    
+    # Apply the second rotation to all vertices and convert to lat/lng
+    vertices = Enum.map(rotated_coords, fn vertex ->
+      if vertex == first_vertex do
+        # Don't rotate the first vertex
+        cartesian_to_lat_lng(vertex)
+      else
+        # Apply the axial rotation to all other vertices
+        rotated = apply_rotation(axial_rotation, vertex)
+        cartesian_to_lat_lng(rotated)
+      end
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates a cube (hexahedron) where one vertex is at the specified point.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+
+  A cube has 8 vertices, forming a regular polyhedron with 6 square faces.
+  """
+  def generate_cube(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # Create the 8 vertices of a cube centered at the origin with side length 2
+    # Each coordinate is either 1 or -1
+    base_coords = [
+      {1, 1, 1},
+      {1, 1, -1},
+      {1, -1, 1},
+      {1, -1, -1},
+      {-1, 1, 1},
+      {-1, 1, -1},
+      {-1, -1, 1},
+      {-1, -1, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the cube to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    # Apply the initial rotation to all vertices
+    rotated_coords = Enum.map(base_coords, fn vertex ->
+      apply_rotation(rotation_matrix, vertex)
+    end)
+
+    # Find the vertex closest to the first one (excluding itself)
+    [first_vertex | other_vertices] = rotated_coords
+    {closest_vertex, _min_distance} = 
+      Enum.map(other_vertices, fn vertex -> 
+        {vertex, vector_distance(first_vertex, vertex)} 
+      end)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+    
+    # Calculate the current and target longitudes
+    %{lng: current_lng} = cartesian_to_lat_lng(closest_vertex)
+    target_lng = lng
+    
+    # Calculate the rotation angle around the axis through the first vertex
+    rotation_angle = (target_lng - current_lng) * :math.pi() / 180
+    
+    # Create rotation matrix around the axis through the chosen point (first_vertex)
+    axial_rotation = axis_angle_to_rotation_matrix(normalize(first_vertex), rotation_angle)
+    
+    # Apply the second rotation to all vertices and convert to lat/lng
+    vertices = Enum.map(rotated_coords, fn vertex ->
+      if vertex == first_vertex do
+        # Don't rotate the first vertex
+        cartesian_to_lat_lng(vertex)
+      else
+        # Apply the axial rotation to all other vertices
+        rotated = apply_rotation(axial_rotation, vertex)
+        cartesian_to_lat_lng(rotated)
+      end
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates an octahedron where one vertex is at the specified point.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+
+  An octahedron has 6 vertices, forming a regular polyhedron with 8 triangular faces.
+  """
+  def generate_octahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+
+    # Create the 6 vertices of an octahedron
+    # These are the points along the coordinate axes
+    base_coords = [
+      {1, 0, 0},
+      {-1, 0, 0},
+      {0, 1, 0},
+      {0, -1, 0},
+      {0, 0, 1},
+      {0, 0, -1}
+    ]
+
+    # All vectors are already on unit sphere since they're axis-aligned unit vectors
+
+    # Rotate the octahedron to place one vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    # Apply the initial rotation to all vertices
+    rotated_coords = Enum.map(base_coords, fn vertex ->
+      apply_rotation(rotation_matrix, vertex)
+    end)
+
+    # Find the vertex closest to the first one (excluding itself)
+    [first_vertex | other_vertices] = rotated_coords
+    {closest_vertex, _min_distance} = 
+      Enum.map(other_vertices, fn vertex -> 
+        {vertex, vector_distance(first_vertex, vertex)} 
+      end)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+    
+    # Calculate the current and target longitudes
+    %{lng: current_lng} = cartesian_to_lat_lng(closest_vertex)
+    target_lng = lng
+    
+    # Calculate the rotation angle around the axis through the first vertex
+    rotation_angle = (target_lng - current_lng) * :math.pi() / 180
+    
+    # Create rotation matrix around the axis through the chosen point (first_vertex)
+    axial_rotation = axis_angle_to_rotation_matrix(normalize(first_vertex), rotation_angle)
+    
+    # Apply the second rotation to all vertices and convert to lat/lng
+    vertices = Enum.map(rotated_coords, fn vertex ->
+      if vertex == first_vertex do
+        # Don't rotate the first vertex
+        cartesian_to_lat_lng(vertex)
+      else
+        # Apply the axial rotation to all other vertices
+        rotated = apply_rotation(axial_rotation, vertex)
+        cartesian_to_lat_lng(rotated)
+      end
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates a dodecahedron where one vertex is at the specified point.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+
+  A dodecahedron has 20 vertices, forming a regular polyhedron with 12 pentagonal faces.
+  """
+  def generate_dodecahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+    phi = @golden_ratio
+
+    # The vertices of a regular dodecahedron use the golden ratio
+    # These vertices are based on mathematical formulas using phi
+    base_coords = [
+      # Vertices from the scaled cube (±1, ±1, ±1)
+      {1, 1, 1},
+      {1, 1, -1},
+      {1, -1, 1},
+      {1, -1, -1},
+      {-1, 1, 1},
+      {-1, 1, -1},
+      {-1, -1, 1},
+      {-1, -1, -1},
+
+      # Vertices from the scaled icosahedron
+      {0, 1/phi, phi},
+      {0, -1/phi, phi},
+      {0, 1/phi, -phi},
+      {0, -1/phi, -phi},
+
+      {phi, 0, 1/phi},
+      {-phi, 0, 1/phi},
+      {phi, 0, -1/phi},
+      {-phi, 0, -1/phi},
+
+      {1/phi, phi, 0},
+      {-1/phi, phi, 0},
+      {1/phi, -phi, 0},
+      {-1/phi, -phi, 0}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the dodecahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    # Apply the initial rotation to all vertices
+    rotated_coords = Enum.map(base_coords, fn vertex ->
+      apply_rotation(rotation_matrix, vertex)
+    end)
+
+    # Find the vertex closest to the first one (excluding itself)
+    [first_vertex | other_vertices] = rotated_coords
+    {closest_vertex, _min_distance} = 
+      Enum.map(other_vertices, fn vertex -> 
+        {vertex, vector_distance(first_vertex, vertex)} 
+      end)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+    
+    # Calculate the current and target longitudes
+    %{lng: current_lng} = cartesian_to_lat_lng(closest_vertex)
+    target_lng = lng
+    
+    # Calculate the rotation angle around the axis through the first vertex
+    rotation_angle = (target_lng - current_lng) * :math.pi() / 180
+    
+    # Create rotation matrix around the axis through the chosen point (first_vertex)
+    axial_rotation = axis_angle_to_rotation_matrix(normalize(first_vertex), rotation_angle)
+    
+    # Apply the second rotation to all vertices and convert to lat/lng
+    vertices = Enum.map(rotated_coords, fn vertex ->
+      if vertex == first_vertex do
+        # Don't rotate the first vertex
+        cartesian_to_lat_lng(vertex)
+      else
+        # Apply the axial rotation to all other vertices
+        rotated = apply_rotation(axial_rotation, vertex)
+        cartesian_to_lat_lng(rotated)
+      end
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Generates an icosahedron where one vertex is at the specified point.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+
+  An icosahedron has 12 vertices, forming a regular polyhedron with 20 triangular faces.
+  """
+  def generate_icosahedron(lat, lng) do
+    p = lat_lng_to_cartesian(lat, lng)
+    phi = @golden_ratio
+
+    # The 12 vertices of an icosahedron, using the golden ratio
+    base_coords = [
+      {0, 1, phi},
+      {0, -1, phi},
+      {0, 1, -phi},
+      {0, -1, -phi},
+      {1, phi, 0},
+      {-1, phi, 0},
+      {1, -phi, 0},
+      {-1, -phi, 0},
+      {phi, 0, 1},
+      {-phi, 0, 1},
+      {phi, 0, -1},
+      {-phi, 0, -1}
+    ]
+
+    # Normalize all vectors to get points on a unit sphere
+    base_coords = Enum.map(base_coords, &normalize/1)
+
+    # Rotate the icosahedron to place the first vertex at our chosen point
+    origin_vertex = List.first(base_coords)
+    rotation_matrix = rotation_matrix_between_vectors(origin_vertex, p)
+
+    # Apply the initial rotation to all vertices
+    rotated_coords = Enum.map(base_coords, fn vertex ->
+      apply_rotation(rotation_matrix, vertex)
+    end)
+
+    # Find the vertex closest to the first one (excluding itself)
+    [first_vertex | other_vertices] = rotated_coords
+    {closest_vertex, _min_distance} = 
+      Enum.map(other_vertices, fn vertex -> 
+        {vertex, vector_distance(first_vertex, vertex)} 
+      end)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+    
+    # Calculate the current and target longitudes
+    %{lng: current_lng} = cartesian_to_lat_lng(closest_vertex)
+    target_lng = lng
+    
+    # Calculate the rotation angle around the axis through the first vertex
+    rotation_angle = (target_lng - current_lng) * :math.pi() / 180
+    
+    # Create rotation matrix around the axis through the chosen point (first_vertex)
+    axial_rotation = axis_angle_to_rotation_matrix(normalize(first_vertex), rotation_angle)
+    
+    # Apply the second rotation to all vertices and convert to lat/lng
+    vertices = Enum.map(rotated_coords, fn vertex ->
+      if vertex == first_vertex do
+        # Don't rotate the first vertex
+        cartesian_to_lat_lng(vertex)
+      else
+        # Apply the axial rotation to all other vertices
+        rotated = apply_rotation(axial_rotation, vertex)
+        cartesian_to_lat_lng(rotated)
+      end
+    end)
+
+    vertices
+  end
+
+  @doc """
+  Calculates the antipode (facing point on Earth) of a given lat/lng point.
+  """
+  def calculate_antipode(%{lat: lat, lng: lng}) do
+    # The antipode has the facing latitude and longitude +/- 180°
+    antipode_lat = -lat
+    antipode_lng = if lng > 0, do: lng - 180, else: lng + 180
+
+    %{lat: antipode_lat, lng: antipode_lng}
+  end
+
+  @doc """
+  Generates a facing tetrahedron whose vertices are the antipodes of the tetrahedron vertices.
+  The next closest vertex will be aligned on the reverse longitude of the specified point.
+  """
+  def generate_facing_tetrahedron(lat, lng) do
+    # First, get the regular tetrahedron vertices
+    regular_tetrahedron = generate_tetrahedron(lat, lng)
+
+    # Calculate the antipode of each vertex
+    facing_vertices = Enum.map(regular_tetrahedron, fn vertex ->
+      calculate_antipode(vertex)
+    end)
+
+    facing_vertices
+  end
+
+  @doc """
+  Generates a facing cube (hexahedron) whose vertices are the centers of the octahedron faces.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+  """
+  def generate_facing_cube(lat, lng) do
+    # First, generate an octahedron with longitude-aligned closest vertex
+    octahedron = generate_octahedron(lat, lng)
+    octahedron_points = Enum.map(octahedron, &lat_lng_to_cartesian(&1.lat, &1.lng))
+
+    # The octahedron has 8 faces, and the dual cube has 8 vertices
+    # The 8 triangular faces of the octahedron can be described by these vertex triplets
+    octahedron_faces = [
+      # Upper hemisphere faces
+      [0, 2, 4],
+      [0, 4, 3],
+      [0, 3, 5],
+      [0, 5, 2],
+
+      # Lower hemisphere faces
+      [1, 2, 4],
+      [1, 4, 3],
+      [1, 3, 5],
+      [1, 5, 2]
+    ]
+
+    # Calculate the center of each face (normalized to the unit sphere)
+    face_centers = Enum.map(octahedron_faces, fn face_indices ->
+      # Get the three vertices of this face
+      vertices = Enum.map(face_indices, fn idx -> Enum.at(octahedron_points, idx) end)
+
+      # Calculate the centroid of the triangle
+      {x1, y1, z1} = Enum.at(vertices, 0)
+      {x2, y2, z2} = Enum.at(vertices, 1)
+      {x3, y3, z3} = Enum.at(vertices, 2)
+
+      # The centroid is the average of the three vertices
+      centroid = {(x1 + x2 + x3) / 3, (y1 + y2 + y3) / 3, (z1 + z2 + z3) / 3}
+
+      # Normalize to place on unit sphere
+      normalize(centroid)
+    end)
+
+    # Convert back to lat/lng
+    vertices = Enum.map(face_centers, &cartesian_to_lat_lng/1)
+    
+    # Ensure one vertex is at the specified lat/lng
+    # For dual polyhedra, we need to find which face center is closest to our target point
+    p = lat_lng_to_cartesian(lat, lng)
+    
+    {_, closest_idx} = 
+      Enum.map_reduce(face_centers, 0, fn vertex, idx -> 
+        {{vertex, vector_distance(p, vertex)}, idx + 1} 
+      end)
+      |> elem(0)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+      |> elem(1)
+    
+    # Arrange vertices so that the closest one is first
+    vertices = Enum.at(vertices, closest_idx - 1) |> List.wrap() |> Enum.concat(List.delete_at(vertices, closest_idx - 1))
+    
+    vertices
+  end
+
+  @doc """
+  Generates a facing octahedron whose vertices are the centers of the cube faces.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+  """
+  def generate_facing_octahedron(lat, lng) do
+    # First, generate a cube with longitude-aligned closest vertex
+    cube = generate_cube(lat, lng)
+    cube_points = Enum.map(cube, &lat_lng_to_cartesian(&1.lat, &1.lng))
+
+    # The cube has 6 faces, and the dual octahedron has 6 vertices
+    # The 6 square faces of the cube can be described by these vertex quartets
+    cube_faces = [
+      # Face indices for a cube centered at the origin
+      [0, 1, 5, 4],  # Top face (+y)
+      [2, 3, 7, 6],  # Bottom face (-y)
+      [0, 2, 6, 4],  # Front face (+z)
+      [1, 3, 7, 5],  # Back face (-z)
+      [4, 5, 7, 6],  # Right face (+x)
+      [0, 1, 3, 2]   # Left face (-x)
+    ]
+
+    # Calculate the center of each face (normalized to the unit sphere)
+    face_centers = Enum.map(cube_faces, fn face_indices ->
+      # Get the four vertices of this face
+      vertices = Enum.map(face_indices, fn idx -> Enum.at(cube_points, idx) end)
+
+      # Calculate the centroid of the square
+      {x1, y1, z1} = Enum.at(vertices, 0)
+      {x2, y2, z2} = Enum.at(vertices, 1)
+      {x3, y3, z3} = Enum.at(vertices, 2)
+      {x4, y4, z4} = Enum.at(vertices, 3)
+
+      # The centroid is the average of the four vertices
+      centroid = {
+        (x1 + x2 + x3 + x4) / 4,
+        (y1 + y2 + y3 + y4) / 4,
+        (z1 + z2 + z3 + z4) / 4
+      }
+
+      # Normalize to place on unit sphere
+      normalize(centroid)
+    end)
+
+    # Ensure one vertex is at the specified lat/lng
+    # For dual polyhedra, we need to find which face center is closest to our target point
+    p = lat_lng_to_cartesian(lat, lng)
+    
+    {_, closest_idx} = 
+      Enum.map_reduce(face_centers, 0, fn vertex, idx -> 
+        {{vertex, vector_distance(p, vertex)}, idx + 1} 
+      end)
+      |> elem(0)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+      |> elem(1)
+    
+    # Convert to lat/lng and arrange vertices so that the closest one is first
+    vertices = Enum.map(face_centers, &cartesian_to_lat_lng/1)
+    vertices = Enum.at(vertices, closest_idx - 1) |> List.wrap() |> Enum.concat(List.delete_at(vertices, closest_idx - 1))
+    
+    vertices
+  end
+
+  # Helper function to calculate the distance between two cartesian vectors
+  defp vector_distance({x1, y1, z1}, {x2, y2, z2}) do
+    dx = x2 - x1
+    dy = y2 - y1
+    dz = z2 - z1
+    :math.sqrt(dx * dx + dy * dy + dz * dz)
+  end
+
+  # Advanced helper functions for accurate rotation and transformation
+
+  # Calculate the rotation matrix to rotate vector v1 to align with vector v2
+  defp rotation_matrix_between_vectors(v1, v2) do
+    v1 = normalize(v1)
+    v2 = normalize(v2)
+
+    # Calculate the cross product and dot product
+    cross = cross_product(v1, v2)
+    dot = dot_product(v1, v2)
+
+    # Handle the case where vectors are parallel or anti-parallel
+    if abs(1.0 - dot) < 1.0e-10 do
+      # Vectors are nearly identical, return identity matrix
+      return_identity_matrix()
+    else
+      if abs(-1.0 - dot) < 1.0e-10 do
+        # Vectors are nearly facing
+        # Find an arbitrary perpendicular vector
+        perp = perpendicular_vector(v1)
+        # Rotate 180 degrees around this perpendicular vector
+        axis_angle_to_rotation_matrix(perp, :math.pi())
+      else
+        # Normal case: calculate the rotation matrix using Rodrigues' rotation formula
+        k = normalize(cross)
+        angle = :math.acos(dot)
+        axis_angle_to_rotation_matrix(k, angle)
+      end
+    end
+  end
+
+  # Return identity rotation matrix
+  defp return_identity_matrix() do
+    {
+      {1.0, 0.0, 0.0},
+      {0.0, 1.0, 0.0},
+      {0.0, 0.0, 1.0}
+    }
+  end
+
+  # Find a perpendicular vector to v
+  defp perpendicular_vector({x, y, z}) do
+    # Choose the coordinate with smallest absolute value
+    # and swap with another coordinate
+    cond do
+      abs(x) < abs(y) and abs(x) < abs(z) ->
+        normalize({0, -z, y})
+      abs(y) < abs(z) ->
+        normalize({-z, 0, x})
+      true ->
+        normalize({-y, x, 0})
+    end
+  end
+
+  # Convert axis and angle to rotation matrix (Rodrigues' rotation formula)
+  defp axis_angle_to_rotation_matrix({kx, ky, kz}, angle) do
+    c = :math.cos(angle)
+    s = :math.sin(angle)
+    t = 1 - c
+
+    r11 = c + kx * kx * t
+    r12 = kx * ky * t - kz * s
+    r13 = kx * kz * t + ky * s
+
+    r21 = ky * kx * t + kz * s
+    r22 = c + ky * ky * t
+    r23 = ky * kz * t - kx * s
+
+    r31 = kz * kx * t - ky * s
+    r32 = kz * ky * t + kx * s
+    r33 = c + kz * kz * t
+
+    {
+      {r11, r12, r13},
+      {r21, r22, r23},
+      {r31, r32, r33}
+    }
+  end
+
+  # Apply a rotation matrix to a vector
+  defp apply_rotation(matrix, {x, y, z}) do
+    {{r11, r12, r13}, {r21, r22, r23}, {r31, r32, r33}} = matrix
+
+    x_new = r11 * x + r12 * y + r13 * z
+    y_new = r21 * x + r22 * y + r23 * z
+    z_new = r31 * x + r32 * y + r33 * z
+
+    {x_new, y_new, z_new}
+  end
+
+  # Vector operations
+  defp cross_product({x1, y1, z1}, {x2, y2, z2}) do
+    {
+      y1 * z2 - z1 * y2,
+      z1 * x2 - x1 * z2,
+      x1 * y2 - y1 * x2
+    }
+  end
+
+  defp dot_product({x1, y1, z1}, {x2, y2, z2}) do
+    x1 * x2 + y1 * y2 + z1 * z2
+  end
+
+  # Convert latitude/longitude to Cartesian coordinates (x, y, z)
+  defp lat_lng_to_cartesian(lat, lng) do
+    lat_rad = :math.pi() * lat / 180
+    lng_rad = :math.pi() * lng / 180
+
+    x = :math.cos(lat_rad) * :math.cos(lng_rad)
+    y = :math.cos(lat_rad) * :math.sin(lng_rad)
+    z = :math.sin(lat_rad)
+
+    {x, y, z}
+  end
+
+  # Convert Cartesian coordinates (x, y, z) to latitude/longitude
+  defp cartesian_to_lat_lng({x, y, z}) do
+    lat = :math.asin(z) * 180 / :math.pi()
+    lng = :math.atan2(y, x) * 180 / :math.pi()
+
+    %{lat: lat, lng: lng}
+  end
+
+  # Normalize a vector to unit length
+  defp normalize({x, y, z}) do
+    length = :math.sqrt(x * x + y * y + z * z)
+    {x / length, y / length, z / length}
+  end &cartesian_to_lat_lng/1)
+    vertices = Enum.at(vertices, closest_idx - 1) |> List.wrap() |> Enum.concat(List.delete_at(vertices, closest_idx - 1))
+    
+    vertices
+  end
+
+  @doc """
+  Generates a facing dodecahedron whose vertices are properly positioned to be dual to the icosahedron.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+  """
+  def generate_facing_dodecahedron(lat, lng) do
+    # Generate an icosahedron with longitude-aligned closest vertex
+    icosahedron = generate_icosahedron(lat, lng)
+    icosa_points = Enum.map(icosahedron, &lat_lng_to_cartesian(&1.lat, &1.lng))
+    
+    # The icosahedron has 20 triangular faces
+    # Define the faces of the icosahedron by vertex indices
+    # This is a simplified representation - in a real implementation, 
+    # you would need the complete list of 20 faces
+    icosa_faces = [
+      # These are placeholder indices - the actual implementation would need
+      # all 20 triangular faces of the icosahedron correctly defined
+      [0, 1, 8], [0, 8, 4], [0, 4, 5], [0, 5, 10], [0, 10, 1],
+      [1, 9, 8], [8, 9, 6], [8, 6, 4], [4, 6, 2], [4, 2, 5],
+      [5, 2, 3], [5, 3, 10], [10, 3, 7], [10, 7, 1], [1, 7, 9],
+      [2, 6, 11], [2, 11, 3], [3, 11, 7], [7, 11, 9], [9, 11, 6]
+    ]
+    
+    # Calculate the center of each face (normalized to the unit sphere)
+    face_centers = Enum.map(icosa_faces, fn face_indices ->
+      # Get the three vertices of this face
+      vertices = Enum.map(face_indices, fn idx -> Enum.at(icosa_points, idx) end)
+
+      # Calculate the centroid of the triangle
+      {x1, y1, z1} = Enum.at(vertices, 0)
+      {x2, y2, z2} = Enum.at(vertices, 1)
+      {x3, y3, z3} = Enum.at(vertices, 2)
+
+      # The centroid is the average of the three vertices
+      centroid = {(x1 + x2 + x3) / 3, (y1 + y2 + y3) / 3, (z1 + z2 + z3) / 3}
+
+      # Normalize to place on unit sphere
+      normalize(centroid)
+    end)
+
+    # Ensure one vertex is at the specified lat/lng
+    # For dual polyhedra, we need to find which face center is closest to our target point
+    p = lat_lng_to_cartesian(lat, lng)
+    
+    {_, closest_idx} = 
+      Enum.map_reduce(face_centers, 0, fn vertex, idx -> 
+        {{vertex, vector_distance(p, vertex)}, idx + 1} 
+      end)
+      |> elem(0)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+      |> elem(1)
+    
+    # Convert to lat/lng and arrange vertices so that the closest one is first
+    vertices = Enum.map(face_centers, &cartesian_to_lat_lng/1)
+    vertices = Enum.at(vertices, closest_idx - 1) |> List.wrap() |> Enum.concat(List.delete_at(vertices, closest_idx - 1))
+    
+    vertices
+  end
+
+  @doc """
+  Generates a facing icosahedron whose vertices are properly positioned to be dual to the dodecahedron.
+  The next closest vertex will be aligned on the same longitude as the specified point.
+  """
+  def generate_facing_icosahedron(lat, lng) do
+    # Generate a dodecahedron with longitude-aligned closest vertex
+    dodecahedron = generate_dodecahedron(lat, lng)
+    dodeca_points = Enum.map(dodecahedron, &lat_lng_to_cartesian(&1.lat, &1.lng))
+    
+    # The dodecahedron has 12 pentagonal faces
+    # Define the faces of the dodecahedron by vertex indices
+    # This is a simplified representation - in a real implementation, 
+    # you would need the complete list of 12 faces
+    dodeca_faces = [
+      # These are placeholder indices - the actual implementation would need
+      # all 12 pentagonal faces of the dodecahedron correctly defined
+      [0, 1, 9, 16, 5],
+      [1, 0, 2, 14, 10],
+      [0, 5, 18, 6, 2],
+      [1, 10, 19, 8, 9],
+      [2, 6, 19, 10, 14],
+      [5, 16, 15, 17, 18],
+      [6, 18, 17, 7, 19],
+      [8, 19, 7, 3, 11],
+      [9, 8, 11, 13, 16],
+      [11, 3, 12, 4, 13],
+      [13, 4, 15, 16, 9],
+      [15, 4, 12, 7, 17]
+    ]
+    
+    # Calculate the center of each face (normalized to the unit sphere)
+    face_centers = Enum.map(dodeca_faces, fn face_indices ->
+      # Get the five vertices of this face
+      vertices = Enum.map(face_indices, fn idx -> Enum.at(dodeca_points, idx) end)
+
+      # Calculate the centroid of the pentagon
+      {x_sum, y_sum, z_sum} = Enum.reduce(vertices, {0, 0, 0}, fn {x, y, z}, {x_acc, y_acc, z_acc} ->
+        {x_acc + x, y_acc + y, z_acc + z}
+      end)
+      
+      centroid = {x_sum / 5, y_sum / 5, z_sum / 5}
+
+      # Normalize to place on unit sphere
+      normalize(centroid)
+    end)
+
+    # Ensure one vertex is at the specified lat/lng
+    # For dual polyhedra, we need to find which face center is closest to our target point
+    p = lat_lng_to_cartesian(lat, lng)
+    
+    {_, closest_idx} = 
+      Enum.map_reduce(face_centers, 0, fn vertex, idx -> 
+        {{vertex, vector_distance(p, vertex)}, idx + 1} 
+      end)
+      |> elem(0)
+      |> Enum.min_by(fn {_v, dist} -> dist end)
+      |> elem(1)
+    
+    # Convert to lat/lng and arrange vertices so that the closest one is first
+    vertices = Enum.map(face_centers,

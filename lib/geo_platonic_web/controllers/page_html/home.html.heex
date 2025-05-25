@@ -1,0 +1,308 @@
+<div class="container mx-auto px-4 py-8">
+  <h1 class="text-3xl font-bold mb-6 text-center">Earth Platonic Grids Explorer</h1>
+  
+<!-- Display Options Panel - Full Width -->
+  <div class="w-full mb-6">
+    <div class="bg-gray-100 p-4 rounded-lg">
+      <div class="flex items-center cursor-pointer" id="display-options-header">
+        <div class="transform transition-transform duration-200" id="toggle-icon">
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="16"
+            height="16"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="feather feather-triangle"
+          >
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+            </path>
+          </svg>
+        </div>
+        <h2 class="text-xl font-bold mb-0 ml-2">Display Options</h2>
+      </div>
+      <div
+        id="display-options-content"
+        class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 mt-4"
+      >
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-tetrahedron"
+            class="w-full px-3 py-1 text-sm bg-purple-500 text-white rounded font-bold"
+          >
+            Tetrahedron
+          </button>
+          <button
+            id="show-facing-tetrahedron"
+            class="w-full px-3 py-1 text-sm bg-cyan-500 text-white rounded font-bold"
+          >
+            Facing Tetrahedron
+          </button>
+        </div>
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-cube"
+            class="w-full px-3 py-1 text-sm bg-green-500 text-white rounded font-bold"
+          >
+            Cube
+          </button>
+          <button
+            id="show-facing-octahedron"
+            class="w-full px-3 py-1 text-sm bg-purple-500 text-white rounded font-bold"
+          >
+            Facing Octahedron
+          </button>
+        </div>
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-octahedron"
+            class="w-full px-3 py-1 text-sm bg-yellow-500 text-white rounded font-bold"
+          >
+            Octahedron
+          </button>
+          <button
+            id="show-facing-cube"
+            class="w-full px-3 py-1 text-sm bg-blue-500 text-white rounded font-bold"
+          >
+            Facing Cube
+          </button>
+        </div>
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-dodecahedron"
+            class="w-full px-3 py-1 text-sm bg-pink-500 text-white rounded font-bold"
+          >
+            Dodecahedron
+          </button>
+          <button
+            id="show-facing-icosahedron"
+            class="w-full px-3 py-1 text-sm bg-gray-500 text-white rounded font-bold"
+          >
+            Facing Icosahedron
+          </button>
+        </div>
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-icosahedron"
+            class="w-full px-3 py-1 text-sm bg-red-500 text-white rounded font-bold"
+          >
+            Icosahedron
+          </button>
+          <button
+            id="show-facing-dodecahedron"
+            class="w-full px-3 py-1 text-sm bg-red-500 text-white rounded font-bold"
+          >
+            Facing Dodecahedron
+          </button>
+        </div>
+        <div class="duals flex flex-col gap-2 w-full">
+          <button
+            id="show-all"
+            class="w-full px-3 py-1 text-sm bg-gray-800 text-white rounded font-bold"
+          >
+            Show All
+          </button>
+          <button
+            id="clear-all"
+            class="w-full px-3 py-1 text-sm bg-gray-500 text-white rounded font-bold"
+          >
+            Clear All
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full mb-6 mt-8">
+    <div class="bg-gray-100 p-4 rounded-lg">
+      <div id="selected-location">
+        <h2 class="text-2xl font-bold mb-4">Selected Location</h2>
+        <div class="flex items-bottom mt-2 space-x-2">
+          <div>
+            <label for="input-lat" class="block text-sm font-medium">Latitude:</label>
+            <input
+              type="number"
+              id="input-lat"
+              class="ml-1 px-1 py-1  block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              min="-90"
+              max="90"
+              step="0.0001"
+              placeholder="0.0000"
+            />
+          </div>
+          <div>
+            <label for="input-lng" class="block text-sm font-medium">Longitude:</label>
+            <input
+              type="number"
+              id="input-lng"
+              class="ml-1 px-1 py-1 block w-24 rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-200 focus:ring-opacity-50"
+              min="-180"
+              max="180"
+              step="0.0001"
+              placeholder="0.0000"
+            />
+          </div>
+          <div class="flex items-end mt-1 mb-0">
+            <button
+              id="update-location-btn"
+              class="ml-3 px-3 py-1 font-bold bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-50 text-sm"
+            >
+              Update
+            </button>
+          </div>
+        </div>
+      </div>
+      <%!-- <div id="antipode-location" class="mb-4">
+      <h3 class="font-bold">Antipode:</h3>
+      <p>Select a location to see its antipode.</p>
+    </div> --%>
+    </div>
+  </div>
+
+  <div class="flex flex-col lg:flex-row gap-6">
+    <!-- Left panel with map -->
+    <div class="w-full lg:w-1/2">
+      <div class="bg-gray-100 p-4 rounded-lg">
+        <div class="flex items-center cursor-pointer" id="map-header">
+          <div class="transform transition-transform duration-200" id="map-toggle-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="feather feather-triangle"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+              </path>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold mb-0 ml-2">2D World Map</h2>
+        </div>
+
+        <div id="map" class="w-full h-[500px] border border-gray-300 rounded-lg"></div>
+      </div>
+    </div>
+    
+<!-- Right panel with globe -->
+    <div class="w-full lg:w-1/2">
+      <div class="bg-gray-100 p-4 rounded-lg">
+        <div class="flex items-center cursor-pointer" id="globe-header">
+          <div class="transform transition-transform duration-200" id="globe-toggle-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="feather feather-triangle"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+              </path>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold mb-0 ml-2">3D Globe</h2>
+        </div>
+        
+<!-- Globe container with the rotation button positioned on top -->
+        <div
+          id="globe"
+          class="w-full h-[500px] border border-gray-300 rounded-lg bg-black relative"
+        >
+          <!-- Add the rotation button directly on top of the globe -->
+          <button
+            id="toggle-rotation"
+            class="absolute top-4 right-4 px-3 py-1 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded z-10"
+          >
+            Start Rotation
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="w-full mb-6 mt-8">
+    <div class="bg-gray-100 p-4 rounded-lg">
+      <div id="platonic-solids-info">
+        <div class="flex items-center cursor-pointer" id="vertices-header">
+          <div class="transform transition-transform duration-200" id="vertices-toggle-icon">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              class="feather feather-triangle"
+            >
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z">
+              </path>
+            </svg>
+          </div>
+          <h2 class="text-xl font-bold mb-0 ml-2">Vertices</h2>
+        </div>
+
+        <div id="vertices-content" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div id="tetrahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-purple-700">Tetrahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+          <div id="facing-tetrahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-cyan-700">Facing Tetrahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+
+          <div id="cube-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-green-700">Cube</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+          <div id="facing-octahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-yellow-700">Facing Octahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+
+          <div id="octahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-yellow-700">Octahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+          <div id="facing-cube-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-green-700">Facing Cube</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+
+          <div id="dodecahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-pink-700">Dodecahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+          <div id="facing-icosahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-red-700">Facing Icosahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+
+          <div id="icosahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-red-700">Icosahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+          <div id="facing-dodecahedron-info" class="border p-4 rounded-lg bg-white">
+            <h4 class="font-bold text-pink-700">Facing Dodecahedron</h4>
+            <div class="vertices-list mt-2">Select a location first</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
